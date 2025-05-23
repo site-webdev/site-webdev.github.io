@@ -3,12 +3,14 @@
   window.navigate = navigate;
 // Importa los módulos de Firebase desde el CDN
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getAuth, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { getAuth, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import { getFirestore, getDocs, collection, doc, updateDoc,
   addDoc,
   deleteDoc, query, where, getDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-storage.js";
-  // Configura Firebase con tus credenciales
+
+  
+// Configura Firebase con tus credenciales
 const firebaseConfig = {
   apiKey: "AIzaSyAvZiluDnZ-f52nYDqMc_MrrT0tbN5gnmI",
   authDomain: "veterinaria-43647.firebaseapp.com",
@@ -64,7 +66,7 @@ document.getElementById("login-form").addEventListener("submit", (e) => {
 
 
 window.logout = function () {
-  firebase.auth().signOut()
+    getAuth().signOut()
     .then(() => {
       document.getElementById("app").style.display = "none";
       document.getElementById("login-screen").style.display = "flex";
@@ -111,9 +113,107 @@ function navigate(view) {
 
   // INICIO (DASHBOARD)
   switch (view) {
+    
     case 'inicio':
-      
-      break;
+content.innerHTML = `
+<h2>Dashboard Veterinaria</h2>
+<div class="resumen" style="display: flex; gap: 20px; flex-wrap: wrap;">
+  <div class="form-card_1" id="citasDia" style="flex: 1; min-width: 200px; padding: 16px; border: 1px solid #ccc; border-radius: 8px;">
+    <h3>Citas del Día</h3>
+    <p><span id="numCitas" class= "numcita">0</span></p>
+  </div>
+  <div class="form-card_2" id="propietarios" style="flex: 1; min-width: 350px; padding: 16px; border: 1px solid #ccc; border-radius: 8px;">
+    <h3>Propietarios Registrados</h3>
+    <p><span id="numPropietarios" class= "numcita">0</span></p>
+  </div>
+  <div class="form-card_3" id="mascotas" style="flex: 1; min-width: 200px; padding: 16px; border: 1px solid #ccc; border-radius: 8px;">
+    <h3>Mascotas Registradas</h3>
+    <p><span id="numMascotas" class= "numcita">0</span></p>
+  </div>
+</div>
+<hr>
+
+<div id="mensajeSaludo" class ="msj"></div>
+
+<div class="form-card_4">
+<h3>Notificar al Cliente (WhatsApp)</h3>
+<form id="whatsappForm">
+  <label for="telefono">Número de WhatsApp:</label><br>
+  <input type="tel" id="telefono" placeholder="+56912345678" required><br><br>
+
+  <label for="mensaje">Mensaje:</label><br>
+  <textarea id="mensaje" placeholder="Escribe el mensaje..." rows="3" required></textarea><br><br>
+
+  <button id="enviarWhatsApp" type="submit" style="display:flex; align-items:center; gap:6px; background-color:#25D366; color:white; border:none; padding:10px 16px; border-radius:8px; font-size:16px; cursor:pointer;">
+    <img src="https://upload.wikimedia.org/wikipedia/commons/6/6b/WhatsApp.svg" alt="WhatsApp" style="width:24px; height:24px;">
+    Enviar por WhatsApp
+  </button>
+</form>
+</div>
+`;
+
+setTimeout(async () => {
+  // Generar mensaje inteligente de saludo
+const horaActual = new Date().getHours();
+let saludo = "¡Hola! ...";
+
+if (horaActual >= 5 && horaActual < 12) {
+saludo = "¡Buenos días! La Ilustre Municipalidad de Maullín le desea una excelente jornada laboral ☀️";
+} else if (horaActual >= 12 && horaActual < 19) {
+saludo = "¡Buenas tardes! Esperamos que su día esté yendo de maravilla 🌤️";
+} else {
+saludo = "¡Buenas noches! Que tenga un merecido descanso 😴";
+}
+
+document.getElementById("mensajeSaludo").textContent = saludo;
+try {
+const hoy = new Date().toISOString().split('T')[0];
+
+  const citasSnapshot = await getDocs(query(collection(db, "citas"), where("fecha", "==", hoy)));
+  const propietariosSnapshot = await getDocs(collection(db, "propietarios"));
+  const mascotasSnapshot = await getDocs(collection(db, "mascotas"));
+
+  // Mostrar cantidades
+  document.getElementById('numCitas').textContent = citasSnapshot.size;
+  document.getElementById('numPropietarios').textContent = propietariosSnapshot.size;
+  document.getElementById('numMascotas').textContent = mascotasSnapshot.size;
+
+  // Botón exportar CSV
+  document.getElementById('exportarCSV').addEventListener('click', () => {
+    const citas = [];
+    citasSnapshot.forEach(doc => citas.push(doc.data()));
+
+    let csv = "Nombre Mascota,Nombre Dueño,Fecha,Hora\n";
+    citas.forEach(c => {
+      csv += `${c.nombreMascota || ''},${c.nombreDueno || ''},${c.fecha || ''},${c.hora || ''}\n`;
+    });
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `citas_${hoy}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  });
+
+  // Formulario WhatsApp
+  const form = document.getElementById('whatsappForm');
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const telefono = document.getElementById('telefono').value.trim();
+    const mensaje = document.getElementById('mensaje').value.trim();
+    if (!telefono || !mensaje) return;
+    const url = `https://wa.me/${telefono.replace('+', '')}?text=${encodeURIComponent(mensaje)}`;
+    window.open(url, '_blank');
+  });
+
+} catch (error) {
+  console.error("Error cargando datos del dashboard:", error);
+}
+}, 0);
+break;
 
 
     // PROPIETARIOS Y MASCOTAS
@@ -393,7 +493,8 @@ function navigate(view) {
             mascotaSelect.appendChild(option);
           });
         }
-
+        cargarMascotasEnSelect();
+        // Cargar nombres de propietarios
         // Mostrar órdenes guardadas
         async function mostrarOrdenes() {
           tablaOrdenes.innerHTML = '';
@@ -410,11 +511,45 @@ function navigate(view) {
               <td>${orden.diagnostico}</td>
               <td>${orden.tratamiento}</td>
               <td>${orden.fecha}</td>
+              <td>
+                <button class="editar" data-id="${docSnap.id}" style="background:#64b5f6; color:white; border:none; padding:5px 10px; border-radius:8px; cursor:pointer; margin-right:5px;">✏️</button>
+                <button class="eliminar" data-id="${docSnap.id}" style="background:#e57373; color:white; border:none; padding:5px 10px; border-radius:8px; cursor:pointer;">🗑️</button>
+              </td>
             `;
+
+
             tablaOrdenes.appendChild(fila);
           }
+
+          // Editar orden
+          document.querySelectorAll('.editar').forEach(btn => {
+            btn.addEventListener('click', async () => {
+              const id = btn.getAttribute('data-id');
+              const docRef = doc(db, 'ordenes', id);
+              const ordenDoc = await getDoc(docRef);
+              if (ordenDoc.exists()) {
+                const orden = ordenDoc.data();
+                document.getElementById('mascota-orden').value = orden.mascotaId;
+                document.getElementById('tipo').value = orden.tipo;
+                document.getElementById('diagnostico').value = orden.diagnostico;
+                document.getElementById('tratamiento').value = orden.tratamiento;
+                document.getElementById('fecha').value = orden.fecha;
+                formOrden.setAttribute('data-id', id);
+              }
+            });
+          });
+
+          // Eliminar orden
+          document.querySelectorAll('.eliminar').forEach(btn => {
+            btn.addEventListener('click', async () => {
+              const id = btn.getAttribute('data-id');
+              await deleteDoc(doc(db, 'ordenes', id));
+              mostrarOrdenes();
+            });
+          });
         }
 
+        // Guardar nueva o editar orden existente
         formOrden.addEventListener('submit', async function (e) {
           e.preventDefault();
 
@@ -423,6 +558,7 @@ function navigate(view) {
           const diagnostico = document.getElementById('diagnostico').value.trim();
           const tratamiento = document.getElementById('tratamiento').value.trim();
           const fecha = document.getElementById('fecha').value;
+          const id = formOrden.getAttribute('data-id');
 
           if (!mascotaId || !tipo || !diagnostico || !tratamiento || !fecha) {
             alert('Por favor completa todos los campos obligatorios.');
@@ -430,16 +566,12 @@ function navigate(view) {
           }
 
           try {
-          
-
-            await addDoc(collection(db, 'ordenes'), {
-              mascotaId,
-              tipo,
-              diagnostico,
-              tratamiento,
-              fecha,
-              archivoUrl
-            });
+            if (id) {
+              await updateDoc(doc(db, 'ordenes', id), { mascotaId, tipo, diagnostico, tratamiento, fecha });
+              formOrden.removeAttribute('data-id');
+            } else {
+              await addDoc(collection(db, 'ordenes'), { mascotaId, tipo, diagnostico, tratamiento, fecha });
+            }
 
             formOrden.reset();
             mostrarOrdenes();
@@ -448,139 +580,176 @@ function navigate(view) {
           }
         });
 
-        cargarMascotasEnSelect();
-        mostrarOrdenes();
         break;
 
 
       //Calendario
       // Calendario (agenda)
-case 'calendario':
-  content.innerHTML = `
-    <h2>Calendario de Citas</h2>
-    <form id="form-cita" class="form-stdb">
-      <select id="mascota-cita" required style="padding: 6px; border-radius: 6px;">
-        <option value="">Selecciona mascota...</option>
-      </select>
-      <input type="date" id="fecha-cita" required />
-      <input type="time" id="hora-cita" required />
-      <input type="text" id="motivo" placeholder="Motivo" required />
-      <button type="submit">Agendar</button>
-    </form>
-    <table id="tabla-citas">
-      <thead>
-        <tr>
-          <th>Mascota</th>
-          <th>Fecha</th>
-          <th>Hora</th>
-          <th>Motivo</th>
-        </tr>
-      </thead>
-      <tbody></tbody>
-    </table>
-    <div id="agenda-calendario" style="margin-top: 40px;"></div>
-  `;
-
-  const formCita = document.getElementById('form-cita');
-  const tablaCitas = document.querySelector('#tabla-citas tbody');
-  const mascotaCitaSelect = document.getElementById('mascota-cita');
-
-  async function cargarMascotasCalendario() {
-    const snapshot = await getDocs(collection(db, 'mascotas'));
-    snapshot.forEach(doc => {
-      const mascota = doc.data();
-      const option = document.createElement('option');
-      option.value = doc.id;
-      option.textContent = mascota.nombre;
-      mascotaCitaSelect.appendChild(option);
-    });
-  }
-
-  async function mostrarCitas() {
-    tablaCitas.innerHTML = '';
-    const snapshot = await getDocs(collection(db, 'citas'));
-    for (const docSnap of snapshot.docs) {
-      const cita = docSnap.data();
-      const mascotaSnap = await getDoc(doc(db, 'mascotas', cita.mascotaId));
-      const nombreMascota = mascotaSnap.exists() ? mascotaSnap.data().nombre : 'Mascota eliminada';
-
-      const fila = document.createElement('tr');
-      fila.innerHTML = `
-        <td>${nombreMascota}</td>
-        <td>${cita.fecha}</td>
-        <td>${cita.hora}</td>
-        <td>${cita.motivo}</td>
+      case 'calendario':
+      content.innerHTML = `
+        <h2>Calendario de Citas</h2>
+        <form id="form-cita" class="form-stdb">
+          <select id="mascota-cita" required style="padding: 6px; border-radius: 6px;">
+            <option value="">Selecciona mascota...</option>
+          </select>
+          <input type="date" id="fecha-cita" required />
+          <input type="time" id="hora-cita" required />
+          <input type="text" id="motivo" placeholder="Motivo" required />
+          <button type="submit">Agendar</button>
+        </form>
+        <table id="tabla-citas">
+          <thead>
+            <tr>
+              <th>Mascota</th>
+              <th>Fecha</th>
+              <th>Hora</th>
+              <th>Motivo</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+        <div id="agenda-calendario" style="margin-top: 40px;"></div>
       `;
-      tablaCitas.appendChild(fila);
-    }
-  }
-  // Agregar evento al formulario de citas
-  async function mostrarAgendaFullCalendar() {
-  const calendarEl = document.getElementById('agenda-calendario');
-  calendarEl.innerHTML = ''; // Limpia si recarga
 
-  const snapshot = await getDocs(collection(db, 'citas'));
-  const events = [];
+      const formCita = document.getElementById('form-cita');
+      const tablaCitas = document.querySelector('#tabla-citas tbody');
+      const mascotaCitaSelect = document.getElementById('mascota-cita');
 
-  for (const docSnap of snapshot.docs) {
-    const cita = docSnap.data();
-    const mascotaSnap = await getDoc(doc(db, 'mascotas', cita.mascotaId));
-    const nombreMascota = mascotaSnap.exists() ? mascotaSnap.data().nombre : 'Mascota eliminada';
+      async function cargarMascotasCalendario() {
+        const snapshot = await getDocs(collection(db, 'mascotas'));
+        snapshot.forEach(doc => {
+          const mascota = doc.data();
+          const option = document.createElement('option');
+          option.value = doc.id;
+          option.textContent = mascota.nombre;
+          mascotaCitaSelect.appendChild(option);
+        });
+      }
 
-    events.push({
-      title: `${nombreMascota} - ${cita.motivo}`,
-      start: `${cita.fecha}T${cita.hora}`,
-      allDay: false
-    });
-  }
+      async function mostrarCitas() {
+        tablaCitas.innerHTML = '';
+        const snapshot = await getDocs(collection(db, 'citas'));
+        for (const docSnap of snapshot.docs) {
+          const cita = docSnap.data();
+          const mascotaSnap = await getDoc(doc(db, 'mascotas', cita.mascotaId));
+          const nombreMascota = mascotaSnap.exists() ? mascotaSnap.data().nombre : 'Mascota eliminada';
 
-  const calendar = new FullCalendar.Calendar(calendarEl, {
-    initialView: 'timeGridWeek',
-    locale: 'es',
-    headerToolbar: {
-      left: 'prev,next today',
-      center: 'title',
-      right: 'timeGridWeek,timeGridDay,listWeek'
-    },
-    events: events
-  });
+          const fila = document.createElement('tr');
+          fila.innerHTML = `
+            <td>${nombreMascota}</td>
+            <td>${cita.fecha}</td>
+            <td>${cita.hora}</td>
+            <td>${cita.motivo}</td>
+            <td>
+              <button data-id="${docSnap.id}" class="editar-cita" style="background:#64b5f6; color:white; border:none; padding:5px 10px; border-radius:8px; cursor:pointer; margin-right:5px;">✏️</button>
+              <button data-id="${docSnap.id}" class="eliminar-cita" style="background:#e57373; color:white; border:none; padding:5px 10px; border-radius:8px; cursor:pointer;">🗑️</button>
+            </td>
+            
+          `;
+          tablaCitas.appendChild(fila);
+        }
 
-  calendar.render();
-}
-mostrarCitas();
-mostrarAgendaFullCalendar();
+        // Eventos de acción
+        document.querySelectorAll('.eliminar-cita').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const id = btn.getAttribute('data-id');
+            await deleteDoc(doc(db, 'citas', id));
+            mostrarCitas();
+            mostrarAgendaFullCalendar();
+          });
+        });
 
-  formCita.addEventListener('submit', async function (e) {
-    e.preventDefault();
+        document.querySelectorAll('.editar-cita').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const id = btn.getAttribute('data-id');
+            const docSnap = await getDoc(doc(db, 'citas', id));
+            if (docSnap.exists()) {
+              const cita = docSnap.data();
+              document.getElementById('mascota-cita').value = cita.mascotaId;
+              document.getElementById('fecha-cita').value = cita.fecha;
+              document.getElementById('hora-cita').value = cita.hora;
+              document.getElementById('motivo').value = cita.motivo;
 
-    const mascotaId = mascotaCitaSelect.value;
-    const fecha = document.getElementById('fecha-cita').value;
-    const hora = document.getElementById('hora-cita').value;
-    const motivo = document.getElementById('motivo').value.trim();
+              formCita.removeEventListener('submit', submitHandler);
+              formCita.addEventListener('submit', async function editarCita(e) {
+                e.preventDefault();
+                await updateDoc(doc(db, 'citas', id), {
+                  mascotaId: mascotaCitaSelect.value,
+                  fecha: document.getElementById('fecha-cita').value,
+                  hora: document.getElementById('hora-cita').value,
+                  motivo: document.getElementById('motivo').value.trim()
+                });
+                formCita.reset();
+                mostrarCitas();
+                mostrarAgendaFullCalendar();
+                formCita.removeEventListener('submit', editarCita);
+                formCita.addEventListener('submit', submitHandler);
+              });
+            }
+          });
+        });
+      }
 
-    if (!mascotaId || !fecha || !hora || !motivo) {
-      alert('Por favor completa todos los campos.');
-      return;
-    }
+      async function mostrarAgendaFullCalendar() {
+        const calendarEl = document.getElementById('agenda-calendario');
+        calendarEl.innerHTML = '';
+        const snapshot = await getDocs(collection(db, 'citas'));
+        const events = [];
 
-    try {
-      await addDoc(collection(db, 'citas'), {
-        mascotaId,
-        fecha,
-        hora,
-        motivo
-      });
+        for (const docSnap of snapshot.docs) {
+          const cita = docSnap.data();
+          const mascotaSnap = await getDoc(doc(db, 'mascotas', cita.mascotaId));
+          const nombreMascota = mascotaSnap.exists() ? mascotaSnap.data().nombre : 'Mascota eliminada';
+          events.push({
+            title: `${nombreMascota} - ${cita.motivo}`,
+            start: `${cita.fecha}T${cita.hora}`,
+            allDay: false
+          });
+        }
 
-      formCita.reset();
+        const calendar = new FullCalendar.Calendar(calendarEl, {
+          initialView: 'timeGridWeek',
+          locale: 'es',
+          headerToolbar: {
+            left: 'prev,next today',
+            center: 'title',
+            right: 'timeGridWeek,timeGridDay,listWeek'
+          },
+          events: events
+        });
+
+        calendar.render();
+      }
+
+      async function submitHandler(e) {
+        e.preventDefault();
+        const mascotaId = mascotaCitaSelect.value;
+        const fecha = document.getElementById('fecha-cita').value;
+        const hora = document.getElementById('hora-cita').value;
+        const motivo = document.getElementById('motivo').value.trim();
+
+        if (!mascotaId || !fecha || !hora || !motivo) {
+          alert('Por favor completa todos los campos.');
+          return;
+        }
+
+        try {
+          await addDoc(collection(db, 'citas'), { mascotaId, fecha, hora, motivo });
+          formCita.reset();
+          mostrarCitas();
+          mostrarAgendaFullCalendar();
+        } catch (error) {
+          alert('Error al agendar cita: ' + error);
+        }
+      }
+
+      formCita.addEventListener('submit', submitHandler);
+
+      cargarMascotasCalendario();
       mostrarCitas();
-    } catch (error) {
-      alert('Error al agendar cita: ' + error);
-    }
-  });
-
-  cargarMascotasCalendario();
-  mostrarCitas();
-  break;
+      mostrarAgendaFullCalendar();
+      break;
 
       // PERFIL
     case 'perfil':
@@ -588,10 +757,21 @@ mostrarAgendaFullCalendar();
     <h2>Perfil de la Clínica</h2>
   `;
       break;
-    // CONFIGURACION
+
+
+    // CERRAR SESIÓN  
     case 'Cerrar sesión':
+    signOut(auth)
+    .then(() => {
+    alert("Sesión cerrada exitosamente");
+    location.reload(); // Recarga la página o redirige al login si tienes una
+    })
+    .catch((error) => {
+    console.error("Error al cerrar sesión:", error);
+    alert("Hubo un problema al cerrar sesión.");
+    });
     break;
-          
+              
 
     default:
       content.innerHTML = '<p>Sección no HABILITDA en esta version.</p>';
